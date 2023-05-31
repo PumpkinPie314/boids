@@ -1,13 +1,19 @@
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle, render::{mesh::Indices, render_resource::PrimitiveTopology}};
+use bevy::{prelude::*, sprite::MaterialMesh2dBundle, render::{mesh::Indices, render_resource::PrimitiveTopology}, ecs::component};
+use rand::Rng;
+
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_startup_system(setup)
+        .add_startup_system(setup_camera)
         .add_startup_system(spawn_boids)
+        .add_system(update_boid_pos)
+        .add_system(print_boid_info)
         .run();
 }
-
+pub fn setup_camera(mut commands: Commands){
+    commands.spawn(Camera2dBundle::default());
+}
 fn create_boid_mesh() -> Mesh{
 
     let vertices = [
@@ -26,18 +32,39 @@ fn create_boid_mesh() -> Mesh{
     mesh
 }
 
+#[derive(Component)]
+pub struct Boid{
+    predator: bool 
+}
+
+#[derive(Component, Clone, Debug, PartialEq)]
+struct Direction(Vec2);
 
 
-fn setup(
+fn update_boid_pos(){
+    return
+}
+
+pub fn print_boid_info(boid_info: Query<&Boid, &MaterialMesh2dBundle<M>>) {
+    for boid in boid_info.iter() {
+        println!("Pos:{:?}\t Vel: {:?}",boid. , boid.velocity);
+    };
+}
+
+fn spawn_boids(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn(Camera2dBundle::default());
-    commands.spawn(MaterialMesh2dBundle {
-        mesh: meshes.add(create_boid_mesh()).into(),
-        transform: Transform::default().with_scale(Vec3::splat(50.)),
-        material: materials.add(ColorMaterial::from(Color::PURPLE)),
-        ..default()
-    });
+    commands.spawn((
+        Boid {
+            predator: false
+        },
+        MaterialMesh2dBundle {
+            mesh: meshes.add(create_boid_mesh()).into(),
+            transform: Transform::from_xyz(rand::random(), y, 0).with_scale(Vec3::splat(50.)),
+            material: materials.add(ColorMaterial::from(Color::PURPLE)),
+            ..default()
+        }
+    ));
 }

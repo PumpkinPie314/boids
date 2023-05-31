@@ -10,5 +10,8 @@ bevy = "0.10.1"
 rand = "0.8.5"
 chrono = "0.4.24"
 
+[profile.dev]
+opt-level = 1
+
 [profile.dev.package."*"]
 opt-level = 3
