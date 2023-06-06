@@ -1,16 +1,19 @@
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle, render::{mesh::Indices, render_resource::PrimitiveTopology}, ecs::component};
+use std::f32::consts::{PI, TAU};
+
+use bevy::{prelude::*, sprite::MaterialMesh2dBundle, render::{mesh::Indices, render_resource::PrimitiveTopology, view::PostProcessWrite}, ecs::{component, system::Command}};
 use rand::Rng;
 
+const BOID_COLOR:Color = Color::PURPLE;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_camera)
-        .add_startup_system(spawn_boids)
-        .add_system(update_boid_pos)
-        .add_system(print_boid_info)
+        .add_startup_system(spawn_boids_system)
+        .add_system(update_posistions_system)
         .run();
 }
+
 pub fn setup_camera(mut commands: Commands){
     commands.spawn(Camera2dBundle::default());
 }
@@ -32,39 +35,61 @@ fn create_boid_mesh() -> Mesh{
     mesh
 }
 
-#[derive(Component)]
-pub struct Boid{
-    predator: bool 
-}
-
-#[derive(Component, Clone, Debug, PartialEq)]
+#[derive(Component, Debug)]
 struct Direction(Vec2);
 
+#[derive(Component, Debug)]
+struct Position(Vec2);
 
-fn update_boid_pos(){
-    return
+
+fn spawn_boids_system(
+    commands: Commands,
+    meshes: ResMut<Assets<Mesh>>,
+    materials: ResMut<Assets<ColorMaterial>>,
+){
+    spawn_boid(
+        Vec2 { x: 0., y: 0. },
+        Vec2 { x: 1., y: 0. }.normalize(),
+        commands,
+        meshes, 
+        materials
+    )
 }
 
-pub fn print_boid_info(boid_info: Query<&Boid, &MaterialMesh2dBundle<M>>) {
-    for boid in boid_info.iter() {
-        println!("Pos:{:?}\t Vel: {:?}",boid. , boid.velocity);
-    };
-}
-
-fn spawn_boids(
+fn spawn_boid(
+    position: Vec2,
+    direction: Vec2,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn((
-        Boid {
-            predator: false
-        },
+    let x = position.x;
+    let y = position.y;
+    let angle = direction.y.atan2(direction.x);
+
+    commands.spawn(
         MaterialMesh2dBundle {
+            transform: Transform{
+                translation : Vec3 { x, y, z : 0. },
+                rotation : Quat::from_rotation_z(angle),
+                scale : Vec3::splat(50.)
+            },
             mesh: meshes.add(create_boid_mesh()).into(),
-            transform: Transform::from_xyz(rand::random(), y, 0).with_scale(Vec3::splat(50.)),
-            material: materials.add(ColorMaterial::from(Color::PURPLE)),
+            material: materials.add(ColorMaterial::from(BOID_COLOR)),
             ..default()
         }
-    ));
+    )
+    .insert(Position(position))
+    .insert(Direction(direction));
+}
+
+fn update_posistions_system(
+    mut query: Query<(&mut Position, &Direction)>,
+    timer: Res<Time>
+) {
+    for (mut position, direction) in query.iter_mut() {
+        position.0.x = position.0.x + direction.0.x;
+        position.0.y = position.0.y + direction.0.y;
+        println!("{:?}", position);
+    }
 }
