@@ -1,6 +1,4 @@
-use std::f32::consts::{PI, TAU};
-
-use bevy::{prelude::*, sprite::MaterialMesh2dBundle, render::{mesh::Indices, render_resource::PrimitiveTopology, view::PostProcessWrite}, ecs::{component, system::Command}};
+use bevy::{prelude::*, render::{mesh::Indices, render_resource::PrimitiveTopology}, sprite::MaterialMesh2dBundle, transform::commands};
 use rand::Rng;
 
 const BOID_COLOR:Color = Color::PURPLE;
@@ -20,9 +18,9 @@ pub fn setup_camera(mut commands: Commands){
 fn create_boid_mesh() -> Mesh{
 
     let vertices = [
-        ([0.0, 1.0, 0.0]),
+        ([-1.0, 1.0, 0.0]),
         ([-1.0, -1.0, 0.0]),
-        ([1.0, -1.0, 0.0]),
+        ([1.0, 0.0, 0.0]),
     ];
 
     let indices = Indices::U32(vec![0, 2, 1, 0, 3, 2]);
@@ -35,37 +33,15 @@ fn create_boid_mesh() -> Mesh{
     mesh
 }
 
-#[derive(Component, Debug)]
-struct Direction(Vec2);
-
-#[derive(Component, Debug)]
-struct Position(Vec2);
-
-
-fn spawn_boids_system(
-    commands: Commands,
-    meshes: ResMut<Assets<Mesh>>,
-    materials: ResMut<Assets<ColorMaterial>>,
-){
-    spawn_boid(
-        Vec2 { x: 0., y: 0. },
-        Vec2 { x: 1., y: 0. }.normalize(),
-        commands,
-        meshes, 
-        materials
-    )
-}
-
 fn spawn_boid(
     position: Vec2,
-    direction: Vec2,
+    angle: f32,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let x = position.x;
     let y = position.y;
-    let angle = direction.y.atan2(direction.x);
 
     commands.spawn(
         MaterialMesh2dBundle {
@@ -78,18 +54,21 @@ fn spawn_boid(
             material: materials.add(ColorMaterial::from(BOID_COLOR)),
             ..default()
         }
-    )
-    .insert(Position(position))
-    .insert(Direction(direction));
+    );
+}
+fn spawn_boids_system(
+    commands: Commands,
+    meshes: ResMut<Assets<Mesh>>,
+    materials: ResMut<Assets<ColorMaterial>>
+){
+    spawn_boid(Vec2 { x: 0.0, y: 0.0 }, 0., commands, meshes, materials)
 }
 
+
 fn update_posistions_system(
-    mut query: Query<(&mut Position, &Direction)>,
-    timer: Res<Time>
+    mut query: Query<&mut Transform>,
 ) {
-    for (mut position, direction) in query.iter_mut() {
-        position.0.x = position.0.x + direction.0.x;
-        position.0.y = position.0.y + direction.0.y;
-        println!("{:?}", position);
+    for mut boid in query.iter_mut() {
+        boid.translation.x = boid.translation.x + boid.rotation.to_euler(EulerRot::XYZ).2
     }
 }
