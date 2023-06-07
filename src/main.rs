@@ -2,12 +2,13 @@ use bevy::{prelude::*, render::{mesh::Indices, render_resource::PrimitiveTopolog
 use rand::Rng;
 
 const BOID_COLOR:Color = Color::PURPLE;
+const SPEED:f32 = 10.0;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_camera)
-        .add_startup_system(spawn_boids_system)
+        .add_startup_system(spawn_boid)
         .add_system(update_posistions_system)
         .run();
 }
@@ -33,42 +34,35 @@ fn create_boid_mesh() -> Mesh{
     mesh
 }
 
+#[derive(Component)]
+struct Boid {}
+
 fn spawn_boid(
-    position: Vec2,
-    angle: f32,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let x = position.x;
-    let y = position.y;
-
-    commands.spawn(
+    commands.spawn((
         MaterialMesh2dBundle {
             transform: Transform{
-                translation : Vec3 { x, y, z : 0. },
-                rotation : Quat::from_rotation_z(angle),
+                translation : Vec3 { x: 0.0, y: 1.0, z: 0.0 },
+                rotation : Quat::from_rotation_z(0.0),
                 scale : Vec3::splat(50.)
             },
             mesh: meshes.add(create_boid_mesh()).into(),
             material: materials.add(ColorMaterial::from(BOID_COLOR)),
             ..default()
-        }
-    );
-}
-fn spawn_boids_system(
-    commands: Commands,
-    meshes: ResMut<Assets<Mesh>>,
-    materials: ResMut<Assets<ColorMaterial>>
-){
-    spawn_boid(Vec2 { x: 0.0, y: 0.0 }, 0., commands, meshes, materials)
+        },
+        Boid {},
+    ));
 }
 
 
 fn update_posistions_system(
-    mut query: Query<&mut Transform>,
+    mut query: Query<&mut Transform, With<Boid>>,
 ) {
     for mut boid in query.iter_mut() {
-        boid.translation.x = boid.translation.x + boid.rotation.to_euler(EulerRot::XYZ).2
+        boid.translation.x = boid.translation.x + 1.0;
+        println!("{:?}",boid)
     }
 }
