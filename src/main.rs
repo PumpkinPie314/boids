@@ -1,11 +1,11 @@
 use std::f32::consts::{PI, TAU};
 
-use bevy::{prelude::*, render::{mesh::Indices, render_resource::PrimitiveTopology}, sprite::MaterialMesh2dBundle, transform::{commands, self}};
+use bevy::{prelude::*, render::{mesh::Indices, render_resource::PrimitiveTopology, view::window}, sprite::MaterialMesh2dBundle, window::PrimaryWindow, ecs::query};
 use rand::Rng;
 
 const BOID_COLOR:Color = Color::PURPLE;
 const BOID_COUNT:i32 = 10;
-const BOID_MIN_SPEED: f32 = 10.0;
+const BOID_MIN_SPEED: f32 = 20.0;
 
 fn main() {
     App::new()
@@ -14,8 +14,9 @@ fn main() {
         .add_startup_system(spawn_boids_system)
         .add_systems((
             move_forward_system,
-            //speed_up_slow_boids_system,
-
+            speed_up_slow_boids_system,
+            wrap_around_system,
+            alignment,
         ))
         // .add_system(turn_system)
         .run();
@@ -43,6 +44,9 @@ fn create_boid_mesh() -> Mesh{
 }
 
 #[derive(Component)]
+struct SpecialTemp {}
+
+#[derive(Component)]
 struct Boid {}
 #[derive(Component)]
 struct Velocity(Vec2);
@@ -52,17 +56,33 @@ fn spawn_boids_system(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     for _ in 0..BOID_COUNT {
-    spawn_boid(
-        0.0,
-        0.0,
-        Vec2 {
-            x: rand::thread_rng().gen_range(-10.0..10.0),
-            y: rand::thread_rng().gen_range(-10.0..10.0),
-        },
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-    )
+        spawn_boid(
+            0.0,
+            0.0,
+            Vec2 {
+                x: rand::thread_rng().gen_range((-2.0*BOID_MIN_SPEED)..(2.0*BOID_MIN_SPEED)),
+                y: rand::thread_rng().gen_range((-2.0*BOID_MIN_SPEED)..(2.0*BOID_MIN_SPEED)),
+            },
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+        );
+        let svelocity = Vec2 { x: 1.0, y: 0.0 };
+        commands.spawn((
+            MaterialMesh2dBundle {
+                transform: Transform{
+                    translation : Vec3 { x: 0.0, y: 0.0, z: 0.0 },
+                    rotation : Quat::from_rotation_z(-svelocity.x.atan2(svelocity.y)),
+                    scale : Vec3::splat(20.)
+                },
+                mesh: meshes.add(create_boid_mesh()).into(),
+                material: materials.add(ColorMaterial::from(Color::RED)),
+                ..default()
+            },
+            Boid {},
+            SpecialTemp{},
+            Velocity(svelocity),
+        ));
     }
 }
 
@@ -109,3 +129,36 @@ fn speed_up_slow_boids_system(
         }
     }
 }
+fn wrap_around_system(
+    window_query: Query<&Window, With<PrimaryWindow>>,
+    mut query: Query<&mut Transform>
+) {
+    let window_entity = window_query.get_single().unwrap();
+    let width = window_entity.width();
+    let height = window_entity.height();
+    for mut boid in query.iter_mut() {
+        if boid.translation.x < -width / 2.0 {
+            boid.translation.x = width / 2.0
+        };
+        if boid.translation.x > width / 2.0 {
+            boid.translation.x = -width / 2.0
+        };
+        if boid.translation.y < -height / 2.0 {
+            boid.translation.y = height / 2.0
+        };
+        if boid.translation.y > height / 2.0 {
+            boid.translation.y = -height / 2.0
+        };
+    }
+}
+
+// fn alignment(
+//     mut query: Query<(&mut Velocity, &Transform)>
+// ) {
+//     for (mut my_velocity, my_position) in query.iter_mut() {
+//         query.iter().filter(|other_boid|{
+//             let other_position = other_boid.1.translation;
+//             false
+//         });
+//     }
+// }
