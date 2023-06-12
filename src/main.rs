@@ -1,5 +1,3 @@
-use std::ops::Mul;
-
 use bevy::prelude::*;
 use bevy::render::{render_resource::PrimitiveTopology, mesh::Indices};
 use rand::Rng;
@@ -7,13 +5,12 @@ use rand::Rng;
 fn main() {
     App::new()
     .add_plugins(DefaultPlugins)
-    .add_event::<UpdateVelocityEvent>()
     .add_startup_system(setup_camera)
     .add_startup_system(spawn_boids_system)
     .add_system(movement_system)
     .add_system(wrap_around_system)
+
     .add_system(flocking_system)
-    .add_system(update_velocitys)
     .run();
 }
 fn setup_camera(
@@ -35,8 +32,6 @@ fn create_triagle_mesh() -> Mesh {
 
 #[derive(Component)]
 struct Velocity(Vec3);
-
-struct UpdateVelocityEvent(Entity, Vec3, f32);
 
 fn spawn_boids_system(
     mut commands: Commands,
@@ -66,7 +61,7 @@ fn spawn_boids_system(
                 x: random_thread.gen_range(-1.0..1.0),
                 y: random_thread.gen_range(-1.0..1.0),
                 z: 0.0,
-            }.normalize().mul(Vec3::splat(50.0)))
+            }.normalize() * Vec3::splat(100.0))
         ));
     }
 }
@@ -104,37 +99,65 @@ fn wrap_around_system(
     }
 }
 
-fn flocking_system(
-    mut update_velocity_event : EventWriter<UpdateVelocityEvent>,
-    query: Query<(Entity, &Transform, &Velocity)>,
-){
-    for (entity_me, transform_me, velocity_me) in query.iter() {
-        update_velocity_event.send(UpdateVelocityEvent(
-            entity_me,
-            Vec3 { x: 0.0, y: -1.0, z: 0.0},
-            1.0
-        ))
-        // let position_me: Vec3 = transform_me.translation;
-        // let mut nabor_count: i32 = 0;
-        // let mut average_nabor_velocity: Vec3 = Vec3::ZERO;
-        // for (entity_other, transform_other, velocity_other) in query.iter() {
-        //     let position_other = transform_other.translation;
-        //     if entity_me == entity_other {continue;};
-        //     if position_me.distance(position_other) < 40.0 {
-        //         let away_from_other: Vec3{
-                    
-        //         };
-        //     };
-        // };
-    }
+struct Intruction{
+    boid: Entity,
+    direction: Vec3,
+    factor: f32,
 }
 
-fn update_velocitys(
-    mut update_velocity_event : EventReader<UpdateVelocityEvent>,
-    mut query: Query<&mut Velocity>,
+const VISION :f32 = 80.0;
+const SIZE :f32 = 20.0;
+
+fn flocking_system(
+    mut query: Query<(Entity, &Transform, &mut Velocity)>
 ){
-    for UpdateVelocityEvent(entity, direction, force) in update_velocity_event.iter() {
-        let mut velocity = query.get_mut(*entity).unwrap();
-        velocity.0 += *direction * Vec3::splat(*force)
+    let mut queue: Vec<Intruction> = vec![];
+    for (boid_a, transform_a, _velocity_a) in query.iter() {
+        let position_a = transform_a.translation;
+        let mut nabor_count: u32 = 0;
+
+        let mut average_velocity = Vec3::ZERO;//alignment
+        let mut average_nabor_position = Vec3::ZERO;//alignment
+
+        for (boid_b, transform_b, velocity_b) in query.iter() {
+            if boid_a == boid_b {continue}; 
+            let position_b = transform_b.translation;
+            if position_a.distance(position_b) > VISION {continue};
+            if position_a.distance(position_b) < SIZE {
+                let away_direction = position_a - position_b;
+                queue.push(Intruction {
+                    boid: boid_a,
+                    direction: away_direction,
+                    factor: 0.3,
+                })
+            };
+            nabor_count += 1;
+            average_velocity += velocity_b.0;
+            average_nabor_position += position_b
+        }
+        if nabor_count == 0 {continue};
+        average_velocity /= Vec3::splat(nabor_count as f32);
+        queue.push(Intruction {
+            boid: boid_a,
+            direction: average_velocity,
+            factor: 0.2,
+        });
+        average_nabor_position /= Vec3::splat(nabor_count as f32);
+        let tward_nabors = average_nabor_position - position_a;
+        queue.push(Intruction {
+            boid: boid_a,
+            direction: tward_nabors,
+            factor: 0.2,
+        });
+
     };
+    for (boid, _transform, mut velocity) in query.iter_mut() {
+        for instruction in queue.iter() {
+            if instruction.boid != boid {continue};
+
+            let speed = velocity.0.length();
+            velocity.0 += instruction.direction * Vec3::splat(instruction.factor);
+            velocity.0 = velocity.0.normalize() * speed;
+        }
+    }
 }
